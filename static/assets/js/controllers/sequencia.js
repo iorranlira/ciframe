@@ -1,40 +1,8 @@
 angular.module('deciframeApp').controller('SequenciaController', function($http, $window, ngProgressFactory, $anchorScroll, $location, GENEROS) {
-  var sequencia1 = {
-    'index': 1,
-    'acordes': [
-      { 'acorde': 'Bm', 'cor': '#2E1C74' },
-      { 'acorde': 'G',  'cor': '#2E1C74' },
-      { 'acorde': 'D',  'cor': '#2E1C74' },
-      { 'acorde': 'A',  'cor': '#2E1C74' }
-  ]};
-  var sequencia2 = {
-    'index': 1,
-    'acordes': [
-      { 'acorde': 'C',  'cor': '#2E1C74' },
-      { 'acorde': 'G',  'cor': '#2E1C74' },
-      { 'acorde': 'Am', 'cor': '#2E1C74' },
-      { 'acorde': 'F',  'cor': '#2E1C74' }
-  ]};
-  var sequencia3 = {
-    'index': 1,
-    'acordes': [
-      { 'acorde': 'Gm', 'cor': '#2E1C74' },
-      { 'acorde': 'F',  'cor': '#2E1C74' }
-  ]};
-  var sequencia4 = {
-    'index': 1,
-    'acordes': [
-      { 'acorde': 'C',  'cor': '#2E1C74' },
-      { 'acorde': 'C7', 'cor': '#2E1C74' },
-      { 'acorde': 'F',  'cor': '#2E1C74' },
-      { 'acorde': 'Fm', 'cor': '#2E1C74' }
-  ]};
+  var COR_SEQUENCIA = '#2E1C74';
   var vm = this;
+
   vm.sequenciasFamosas = [];
-  vm.sequenciasFamosas.push(sequencia1);
-  vm.sequenciasFamosas.push(sequencia2);
-  vm.sequenciasFamosas.push(sequencia3);
-  vm.sequenciasFamosas.push(sequencia4);
   vm.minhaSequencia = {};
   vm.isSearching = false;
   vm.showSearchResultsCount = false;
@@ -43,6 +11,79 @@ angular.module('deciframeApp').controller('SequenciaController', function($http,
   vm.generos = GENEROS;
   vm.meuGenero = "";
   vm.progressbar = ngProgressFactory.createInstance();
+
+  vm.novaSequencia = { nome: '', acordesTexto: '' };
+  vm.cadastrando = false;
+  vm.mensagemCadastro = '';
+  vm.cadastroSemResultados = false;
+  vm.erroCadastro = '';
+  vm.erroCatalogo = '';
+
+  var formatarSequencia = function(sequencia) {
+    return {
+      id: sequencia.id,
+      nome: sequencia.nome,
+      is_builtin: sequencia.is_builtin,
+      acordes: (sequencia.acordes || []).map(function(acorde) {
+        return { 'acorde': acorde, 'cor': COR_SEQUENCIA };
+      })
+    };
+  };
+
+  vm.carregarSequencias = function() {
+    vm.erroCatalogo = '';
+    $http.get('sequencias')
+      .success(function(data) {
+        vm.sequenciasFamosas = (data || []).map(formatarSequencia);
+      })
+      .error(function() {
+        vm.erroCatalogo = 'Não foi possível carregar o catálogo de sequências.';
+      });
+  };
+
+  vm.cadastrarSequencia = function() {
+    vm.mensagemCadastro = '';
+    vm.cadastroSemResultados = false;
+    vm.erroCadastro = '';
+
+    var nome = (vm.novaSequencia.nome || '').trim();
+    var acordes = (vm.novaSequencia.acordesTexto || '')
+      .split(',')
+      .map(function(acorde) { return acorde.trim(); })
+      .filter(function(acorde) { return acorde.length > 0; });
+
+    if (!nome || !acordes.length) {
+      vm.erroCadastro = 'Informe um nome e pelo menos um acorde.';
+      return;
+    }
+
+    vm.cadastrando = true;
+    $http.post('sequencias', { nome: nome, acordes: acordes })
+      .success(function(data) {
+        vm.cadastrando = false;
+        vm.sequenciasFamosas.push(formatarSequencia(data));
+        vm.cadastroSemResultados = (data.total_musicas === 0);
+
+        if (vm.cadastroSemResultados) {
+          vm.mensagemCadastro = 'Sequência cadastrada, mas nenhuma música foi encontrada com ela hoje.';
+        } else {
+          vm.mensagemCadastro = 'Sequência cadastrada. Ela retorna ' +
+            data.total_musicas + ' música(s) hoje.';
+        }
+
+        vm.novaSequencia = { nome: '', acordesTexto: '' };
+      })
+      .error(function(data, status) {
+        vm.cadastrando = false;
+        if (data && data.erro) {
+          vm.erroCadastro = data.erro;
+        } else if (status === 409) {
+          vm.erroCadastro = 'Essa sequência já está cadastrada.';
+        } else {
+          vm.erroCadastro = 'Não foi possível cadastrar a sequência.';
+        }
+      });
+  };
 
   vm.temAcorde = function(acorde) {
     if (vm.minhaSequencia.acordes) {
@@ -102,4 +143,6 @@ angular.module('deciframeApp').controller('SequenciaController', function($http,
     vm.showSearchResultsCount = false;
     $("body").animate({scrollTop: $("#results").offset().top}, "slow");
   };
+
+  vm.carregarSequencias();
 });

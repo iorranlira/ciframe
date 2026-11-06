@@ -6,7 +6,8 @@ acordes famosas — o deciframe cruza isso com uma base de cifras e sugere
 músicas parecidas.
 
 Stack: backend Flask (Python) servindo uma API JSON + um frontend AngularJS
-estático, numa base de dados carregada de um CSV em memória (sem banco).
+estático. Músicas e gêneros vêm de um CSV carregado em memória; o catálogo de
+sequências de acordes é persistido em SQLite.
 
 ## Rodando localmente
 
@@ -14,8 +15,12 @@ estático, numa base de dados carregada de um CSV em memória (sem banco).
 
 ```
 docker build -t ciframe .
-docker run -p 8080:8080 ciframe
+docker run -p 8080:8080 -v deciframe-data:/app/instance ciframe
 ```
+
+O volume `deciframe-data` mantém o catálogo de sequências entre reinícios e
+recriações do container. Sem um volume nomeado, o banco fica em um volume
+anônimo e pode ser perdido ao remover o container com `docker rm -v`.
 
 Acesse [http://localhost:8080](http://localhost:8080).
 

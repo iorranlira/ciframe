@@ -34,11 +34,27 @@
 
 ## Registro das descobertas
 
-[Para cada pergunta acima: o que você encontrou, com referência de onde (arquivo,
-linha, documentação, teste que você rodou).]
+1. Algoritmo de matching:
+**O que define “a sequência X aparece na música Y?”** A sequência X aparece na música Y quando duas condições são verdadeiras ao mesmo tempo, depois de normalizar ambas com a mesma função. 
+**A ordem importa?** Sim. A sequência precisa ser uma parte contígua de musica.cifra, em ordem. Se for uma sequência fora de ordem não encontra o padrão. 
+**Repetições importam?** Sim. A entrada deve respeitar as repetições originais da sequência. 
+**Normalização?** Sim, levando em consideração espaços (strip().lower()) aplicada à sequência e a cada acorde da música. A chave persistida fica sem separador e em minúsculas, Variações de escrita do mesmo acorde não são tratadas e ficam para o  futuro.
+
+2. **Validação da hipótese**:
+
+3. **Banco de dados**: 
+o BD escolhido foi SQLite via sqlite3 da stdlib. Para o ´Dockerfile´ é preciso declarar VOLUME /app/instance e executar o container com um volume nomeado, por exemplo -v deciframe-data:/app/instance. Em relação a persistência local, o banco não sobrevive ao ´docker rm´.
+
+4. **Frontend existente**
+A página #/porsequencia é a tela da feature de busca de músicas por sequência de acordes. Hoje ela: guarda uma lista fixa de 4 sequências (sequencia1 a sequencia4) e, quando o usuário escolhe uma, faz a busca chamando similares?sequencia=...´ no backend. 
+ 
 
 ## Trade-offs identificados
 
-[Opções reais que você considerou para cada decisão (algoritmo, banco, frontend) e
-os prós/contras de cada uma. Isso alimenta a fase de proposta — não decida ainda
-aqui.]
+1. Algoritmo de matching: A regra estrita da tag (todos os acordes da música dentro do conjunto da sequência, e a sequência como trecho contíguo de cifra) reproduz exatamente as 6 originais e serve para todas as sequências. A parte negativa é que ela é restritiva e pode retornar zero ou poucos resultados para sequências novas. Exigir só o trecho contíguo traria mais resultados, mas não reproduziria as 6 originais. Ignorar ordem e repetição (usando acordes como conjunto) é simples, mas perde o sentido de “sequência” e não bate com a tag atual
+
+2. Chave normalizada. Concatenar os acordes em minúsculas, sem separador (bmgda), mantém o formato que o backend já usa, mas não preserva a caixa original (que fica em nome e acordes_json). Usar vírgula como separador seria mais legível, mas mudaria o contrato atual da busca.
+
+3. Banco de dados. O SQLite via sqlite3 da stdlib não exige serviço nem dependência nova e cabe no container único. O custo é não ter migrations e precisar de volume nomeado para persistir. Manter tudo em memória não muda a infraestrutura, mas não persiste. Um serviço externo, como Postgres, é mais robusto, mas viola o deploy local-only em container único.
+
+4. Frontend. Carregar o catálogo via GET /sequencias cria uma fonte única de verdade e elimina a divergência entre 4 e 6 sequências, mas passa a depender do backend. Apenas ampliar a lista hardcoded para 6 é mais simples, porém não resolve o cadastro nem a duplicação de fonte. 

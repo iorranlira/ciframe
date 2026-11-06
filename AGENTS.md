@@ -6,9 +6,10 @@ similar songs. Full description: [README.md](README.md).
 
 ## Stack
 
-- Backend: Python 3.9, Flask 3.1, gunicorn. Single file (`main.py`) that
-  loads `data/top/dataset_final.csv` into memory once at startup — there is
-  no database.
+- Backend: Python 3.9, Flask 3.1, gunicorn. `main.py` carrega
+  `data/top/dataset_final.csv` em memória uma vez no startup. O catálogo de
+  sequências de acordes é persistido em SQLite via `sequencias.py`.
+  Músicas e gêneros continuam sem banco.
 - Frontend: AngularJS 1.4.9 + jQuery, loaded from CDN in `static/index.html`,
   no build step. Legacy, and there's no plan to modernize the stack itself —
   but touching it is no longer off-limits when a task needs it; see
@@ -21,7 +22,7 @@ Docker (matches how the app actually ships):
 
 ```
 docker build -t ciframe .
-docker run -p 8080:8080 ciframe
+docker run -p 8080:8080 -v deciframe-data:/app/instance ciframe
 ```
 
 Or a plain virtualenv:
@@ -43,5 +44,6 @@ Done when this returns a JSON array of genre names (e.g. `["Rock", "Samba", ...]
 ## Gotchas
 
 - Editing `data/top/*.csv` requires a restart: it's read once at import time, not per-request.
+- O catálogo de sequências fica em `instance/sequences.db`; no Docker, monte o volume nomeado em `/app/instance` para persistir entre recriações do container.
 - Every endpoint returns `json.dumps(...)` as a plain string, not `jsonify` — responses come back `Content-Type: text/html`. This is intentional legacy behavior; changing it is a real API change, not a cleanup.
 - Check `docs/adr/` before changing the deploy setup — it has a documented reason for its current state.

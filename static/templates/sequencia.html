@@ -3,9 +3,40 @@
     <div class="col-sm-6 col-md-4 viewWindow-panel viewWindow-panel-C">
       <div class="viewWindow-panel-container">
         <h4 class="text-center">Aponte uma sequencia de acordes</h4>
-        <div class="acordes-container" ng-repeat='sequencia in Sequencia.sequenciasFamosas' ng-click="Sequencia.pesquisarPorSequencia(sequencia)">
+
+        <form ng-submit="Sequencia.cadastrarSequencia()" style="margin-bottom: 20px;">
+          <h5>Cadastrar nova sequência</h5>
+          <div class="form-group">
+            <input
+              type="text"
+              class="form-control"
+              maxlength="120"
+              placeholder="Nome da sequência"
+              ng-model="Sequencia.novaSequencia.nome"
+              ng-disabled="Sequencia.cadastrando">
+          </div>
+          <div class="form-group">
+            <input
+              type="text"
+              class="form-control"
+              placeholder="Acordes na ordem, separados por vírgula"
+              ng-model="Sequencia.novaSequencia.acordesTexto"
+              ng-disabled="Sequencia.cadastrando">
+            <span class="help-block">Ex.: C, G, Am, F</span>
+          </div>
+          <button type="submit" class="btn btn-default" ng-disabled="Sequencia.cadastrando">
+            Cadastrar sequência
+          </button>
+          <p ng-class="Sequencia.cadastroSemResultados ? 'text-warning' : 'text-success'" ng-if="Sequencia.mensagemCadastro">{{Sequencia.mensagemCadastro}}</p>
+          <p class="text-danger" ng-if="Sequencia.erroCadastro">{{Sequencia.erroCadastro}}</p>
+          <p class="text-danger" ng-if="Sequencia.erroCatalogo">{{Sequencia.erroCatalogo}}</p>
+        </form>
+
+        <div class="acordes-container" ng-repeat="sequencia in Sequencia.sequenciasFamosas track by sequencia.id" ng-click="Sequencia.pesquisarPorSequencia(sequencia)">
+          <p class="text-center">{{sequencia.nome}}</p>
           <df-hex acorde="{{acordeon.acorde}}" acorde-color="{{acordeon.cor}}" acorde-checked="Sequencia.temAcorde(acordeon)" ng-repeat="acordeon in sequencia.acordes"></df-hex>
         </div>
+        <p class="text-center" ng-if="!Sequencia.sequenciasFamosas.length">Nenhuma sequência cadastrada.</p>
         <br style="clear: both;">
         <button class="search-results-count" ng-if="Sequencia.showSearchResultsCount" ng-click="Sequencia.goToResults()">
           <span class="glyphicon glyphicon-triangle-bottom bounce animated infinite"></span>
@@ -58,6 +89,7 @@
           </div>
         </div>
 
+      </div>
     </div>
   </div>
 </div>

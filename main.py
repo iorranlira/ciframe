@@ -5,6 +5,7 @@ import sys
 from musica import *
 from collections import OrderedDict
 import unicodedata
+import sequencias as seq_store
 
 app = Flask(__name__)
 
@@ -37,12 +38,6 @@ TAM_PAGINA = 100
 genero_musicas = {}
 generos = set()
 acordes = set()
-sequencias = {'BmGDA' : 0,
-        'CGAmF' : 1,
-        'EmG' : 2,
-        'CA7DmG7' : 3,
-        'GmF' : 4,
-        'CC7FFm' : 5}
 
 musicas_dict = {}
 
@@ -96,6 +91,11 @@ for k,v in genero_musicas.items():
     genero_musicas[k].sort(key = lambda x : x.popularidade, reverse = True)
 
 f.close()
+
+# O catálogo de sequências vive em SQLite; músicas e gêneros continuam no CSV
+# carregado acima, em memória.
+sequencias_conn = seq_store.init_db()
+seq_store.seed_sequencias_originais(sequencias_conn)
 
 
 @app.route('/')
@@ -155,6 +155,30 @@ def remover_combinantes(string):
 def get_musicas():
     return json.dumps([v.__dict__ for v in musicas.values()])
 
+@app.route('/sequencias', methods=['GET', 'POST'])
+def get_sequencias():
+    if request.method == 'GET':
+        return json.dumps(seq_store.listar_sequencias(sequencias_conn))
+
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return json.dumps({'erro': 'Envie um JSON com nome e acordes.'}), 400
+
+    try:
+        sequencia = seq_store.criar_sequencia(
+            sequencias_conn,
+            payload.get('nome'),
+            payload.get('acordes'),
+        )
+    except seq_store.SequenciaInvalida as exc:
+        return json.dumps({'erro': str(exc)}), 400
+    except seq_store.SequenciaDuplicada:
+        return json.dumps({'erro': 'Essa sequência já está cadastrada.'}), 409
+
+    resposta = dict(sequencia)
+    resposta['total_musicas'] = contar_musicas_por_sequencia(sequencia)
+    return json.dumps(resposta), 201
+
 @app.route('/generos')
 def get_generos():
     return json.dumps(generos)
@@ -188,39 +212,69 @@ def get_similares():
         musica = musicas[id_musica_tag]
         acordes = musica.acordes
     elif sequencia_tag:
-        acordes = sequencia_tag.replace(',','')
+        acordes_sequencia = [
+            acorde.strip()
+            for acorde in sequencia_tag.split(',')
+            if acorde.strip()
+        ]
+        chave = seq_store.chave_normalizada(acordes_sequencia)
+        sequencia = seq_store.buscar_por_chave(sequencias_conn, chave)
         similares = []
 
-        if acordes in sequencias:
-            id_seq = sequencias[acordes]
-            similares = get_pagina(get_similares_por_sequencia(id_seq, generos_key), pagina_tag)
+        if sequencia is not None:
+            similares = get_pagina(
+                get_similares_por_sequencia(sequencia, generos_key),
+                pagina_tag,
+            )
         return json.dumps(similares)
 
     similares = get_similares(acordes, generos_key, id_musica_tag)
 
     return json.dumps(get_pagina(similares, pagina_tag))
 
-def get_similares_por_sequencia(id_seq, generos_key):
+def _similar_para_resposta(musica):
+    return {
+        'id_unico_musica' : musica.id_unico_musica,
+        'id_artista' : musica.id_artista,
+        'id_musica' : musica.id_musica,
+        'nome_artista' : musica.nome_artista,
+        'nome_musica' : musica.nome_musica,
+        'popularidade' : musica.popularidade,
+        'acordes' : musica.acordes,
+        'genero' : musica.genero,
+        'url' : musica.url,
+    }
+
+
+def get_similares_por_sequencia(sequencia, generos_key):
     # filtra para melhor desempenho
     collection = apply_filtro(musicas.values(), generos_key)
+    normalizada = seq_store.normalizar_acordes(sequencia['acordes'])
 
-    similares = []
-    for musica in collection:
-        if str(id_seq) in musica.seqs_famosas:
-            similar = {
-                'id_unico_musica' : musica.id_unico_musica,
-                'id_artista' : musica.id_artista,
-                'id_musica' : musica.id_musica,
-                'nome_artista' : musica.nome_artista,
-                'nome_musica' : musica.nome_musica,
-                'popularidade' : musica.popularidade,
-                'acordes' : musica.acordes,
-                'genero' : musica.genero,
-                'url' : musica.url,
-            }
-            similares.append(similar)
+    return [
+        _similar_para_resposta(musica)
+        for musica in collection
+        if seq_store.aparece_na_musica(normalizada, musica)
+    ]
 
-    return similares
+
+def get_similares_por_tag(id_seq, generos_key):
+    # Mantido como referência do comportamento legado e para a regressão.
+    collection = apply_filtro(musicas.values(), generos_key)
+    return [
+        _similar_para_resposta(musica)
+        for musica in collection
+        if str(id_seq) in musica.seqs_famosas
+    ]
+
+
+def contar_musicas_por_sequencia(sequencia):
+    normalizada = seq_store.normalizar_acordes(sequencia['acordes'])
+    return sum(
+        1
+        for musica in musicas.values()
+        if seq_store.aparece_na_musica(normalizada, musica)
+    )
 
 
 def get_pagina(colecao, pagina_tag):
